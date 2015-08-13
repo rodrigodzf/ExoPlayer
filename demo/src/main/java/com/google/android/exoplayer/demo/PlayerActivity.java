@@ -67,7 +67,6 @@ import java.net.CookieManager;
 import java.net.CookiePolicy;
 import java.util.List;
 import java.util.Map;
-
 /**
  * An activity that plays media using {@link DemoPlayer}.
  */
@@ -179,6 +178,8 @@ public class PlayerActivity extends Activity implements SurfaceHolder.Callback, 
     if (currentHandler != defaultCookieManager) {
       CookieHandler.setDefault(defaultCookieManager);
     }
+
+
   }
 
   @Override

@@ -129,8 +129,9 @@ import java.util.Locale;
 
     public static final Sample[] MISC = new Sample[]{
             new Sample("Local/tcp", "tcp://192.168.178.45:8000", PlayerActivity.TYPE_OTHER),
-            new Sample("Local/http", "http://192.168.178.45:8000", PlayerActivity.TYPE_OTHER),
-            new Sample("Local/rtsp", "rtsp://192.168.178.45:8000", PlayerActivity.TYPE_OTHER),
+            new Sample("Asset 4k", "file:///storage/sdcard0/HHI/WM-GOAL-01.mp4", PlayerActivity.TYPE_OTHER),
+            new Sample("Local/http", "http://192.168.178.45/stream.ts", PlayerActivity.TYPE_OTHER),
+            new Sample("Local/rtsp", "rtsp://192.168.178.45:8554/stream", PlayerActivity.TYPE_OTHER),
             new Sample("Dizzy", "http://html5demos.com/assets/dizzy.mp4", PlayerActivity.TYPE_OTHER),
             new Sample("Apple AAC 10s", "https://devimages.apple.com.edgekey.net/"
                     + "streaming/examples/bipbop_4x3/gear0/fileSequence0.aac", PlayerActivity.TYPE_OTHER),
