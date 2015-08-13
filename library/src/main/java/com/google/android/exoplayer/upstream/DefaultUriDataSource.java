@@ -39,7 +39,10 @@ public final class DefaultUriDataSource implements UriDataSource {
   private static final String SCHEME_FILE = "file";
   private static final String SCHEME_ASSET = "asset";
   private static final String SCHEME_CONTENT = "content";
+  private static final String SCHEME_TCP = "tcp";
 
+
+  private final UriDataSource tcpDataSource;
   private final UriDataSource httpDataSource;
   private final UriDataSource fileDataSource;
   private final UriDataSource assetDataSource;
@@ -108,6 +111,7 @@ public final class DefaultUriDataSource implements UriDataSource {
    */
   public DefaultUriDataSource(Context context, TransferListener listener,
       UriDataSource httpDataSource) {
+    this.tcpDataSource = new TcpDataSource();
     this.httpDataSource = Assertions.checkNotNull(httpDataSource);
     this.fileDataSource = new FileDataSource(listener);
     this.assetDataSource = new AssetDataSource(context, listener);
@@ -129,6 +133,8 @@ public final class DefaultUriDataSource implements UriDataSource {
       dataSource = assetDataSource;
     } else if (SCHEME_CONTENT.equals(scheme)) {
       dataSource = contentDataSource;
+    } else if (SCHEME_TCP.equals(scheme)) {
+      dataSource = tcpDataSource;
     } else {
       dataSource = httpDataSource;
     }
