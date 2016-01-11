@@ -135,7 +135,10 @@ import java.util.Locale;
   };
 
   public static final Sample[] MISC = new Sample[] {
-    new Sample("Dizzy", "http://html5demos.com/assets/dizzy.mp4", PlayerActivity.TYPE_OTHER),
+          new Sample("BIFS", "file:///sdcard/HHI/video1.mp4", PlayerActivity.TYPE_OTHER),
+          new Sample("NON-BIFS", "file:///sdcard/HHI/a1.mp4", PlayerActivity.TYPE_OTHER),
+
+          new Sample("Dizzy", "http://html5demos.com/assets/dizzy.mp4", PlayerActivity.TYPE_OTHER),
     new Sample("Apple AAC 10s", "https://devimages.apple.com.edgekey.net/"
         + "streaming/examples/bipbop_4x3/gear0/fileSequence0.aac", PlayerActivity.TYPE_OTHER),
     new Sample("Apple TS 10s", "https://devimages.apple.com.edgekey.net/streaming/examples/"

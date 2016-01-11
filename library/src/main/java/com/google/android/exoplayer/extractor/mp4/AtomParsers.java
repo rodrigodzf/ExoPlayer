@@ -26,6 +26,7 @@ import com.google.android.exoplayer.util.ParsableBitArray;
 import com.google.android.exoplayer.util.ParsableByteArray;
 import com.google.android.exoplayer.util.Util;
 
+import android.util.Log;
 import android.util.Pair;
 
 import java.util.ArrayList;
@@ -49,8 +50,12 @@ import java.util.List;
     Atom.ContainerAtom mdia = trak.getContainerAtomOfType(Atom.TYPE_mdia);
     int trackType = parseHdlr(mdia.getLeafAtomOfType(Atom.TYPE_hdlr).data);
     if (trackType != Track.TYPE_soun && trackType != Track.TYPE_vide && trackType != Track.TYPE_text
-        && trackType != Track.TYPE_sbtl && trackType != Track.TYPE_subt) {
+        && trackType != Track.TYPE_sbtl && trackType != Track.TYPE_subt && trackType != Track.TYPE_sdsm) {
       return null;
+    }
+
+    if (trackType == Track.TYPE_sdsm){
+      Log.d("BIFS", "Bifs is there!");
     }
 
     TkhdData tkhdData = parseTkhd(trak.getLeafAtomOfType(Atom.TYPE_tkhd).data);
