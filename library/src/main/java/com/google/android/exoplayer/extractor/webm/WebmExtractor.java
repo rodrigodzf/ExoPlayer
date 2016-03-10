@@ -19,6 +19,7 @@ import com.google.android.exoplayer.C;
 import com.google.android.exoplayer.MediaFormat;
 import com.google.android.exoplayer.ParserException;
 import com.google.android.exoplayer.drm.DrmInitData;
+import com.google.android.exoplayer.drm.DrmInitData.SchemeInitData;
 import com.google.android.exoplayer.extractor.ChunkIndex;
 import com.google.android.exoplayer.extractor.Extractor;
 import com.google.android.exoplayer.extractor.ExtractorInput;
@@ -79,6 +80,7 @@ public final class WebmExtractor implements Extractor {
   private static final String CODEC_ID_DTS = "A_DTS";
   private static final String CODEC_ID_DTS_EXPRESS = "A_DTS/EXPRESS";
   private static final String CODEC_ID_DTS_LOSSLESS = "A_DTS/LOSSLESS";
+  private static final String CODEC_ID_FLAC = "A_FLAC";
   private static final String CODEC_ID_SUBRIP = "S_TEXT/UTF8";
 
   private static final int VORBIS_MAX_INPUT_SIZE = 8192;
@@ -450,8 +452,8 @@ public final class WebmExtractor implements Extractor {
             throw new ParserException("Encrypted Track found but ContentEncKeyID was not found");
           }
           if (!sentDrmInitData) {
-            extractorOutput.drmInitData(
-                new DrmInitData.Universal(MimeTypes.VIDEO_WEBM, currentTrack.encryptionKeyId));
+            extractorOutput.drmInitData(new DrmInitData.Universal(
+                new SchemeInitData(MimeTypes.VIDEO_WEBM, currentTrack.encryptionKeyId)));
             sentDrmInitData = true;
           }
         }
@@ -1050,6 +1052,7 @@ public final class WebmExtractor implements Extractor {
         || CODEC_ID_DTS.equals(codecId)
         || CODEC_ID_DTS_EXPRESS.equals(codecId)
         || CODEC_ID_DTS_LOSSLESS.equals(codecId)
+        || CODEC_ID_FLAC.equals(codecId)
         || CODEC_ID_SUBRIP.equals(codecId);
   }
 
@@ -1223,6 +1226,10 @@ public final class WebmExtractor implements Extractor {
           break;
         case CODEC_ID_DTS_LOSSLESS:
           mimeType = MimeTypes.AUDIO_DTS_HD;
+          break;
+        case CODEC_ID_FLAC:
+          mimeType = MimeTypes.AUDIO_FLAC;
+          initializationData = Collections.singletonList(codecPrivate);
           break;
         case CODEC_ID_SUBRIP:
           mimeType = MimeTypes.APPLICATION_SUBRIP;

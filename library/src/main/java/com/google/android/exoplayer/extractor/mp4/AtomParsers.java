@@ -17,6 +17,7 @@ package com.google.android.exoplayer.extractor.mp4;
 
 import com.google.android.exoplayer.C;
 import com.google.android.exoplayer.MediaFormat;
+import com.google.android.exoplayer.extractor.GaplessInfo;
 import com.google.android.exoplayer.util.Ac3Util;
 import com.google.android.exoplayer.util.Assertions;
 import com.google.android.exoplayer.util.CodecSpecificDataUtil;
@@ -267,6 +268,17 @@ import java.util.List;
     // implementation handles simple discarding/delaying of samples. The extractor may place
     // further restrictions on what edited streams are playable.
 
+    if (track.editListDurations.length == 1 && track.editListDurations[0] == 0) {
+      // The current version of the spec leaves handling of an edit with zero segment_duration in
+      // unfragmented files open to interpretation. We handle this as a special case and include all
+      // samples in the edit.
+      for (int i = 0; i < timestamps.length; i++) {
+        timestamps[i] = Util.scaleLargeTimestamp(timestamps[i] - track.editListMediaTimes[0],
+            C.MICROS_PER_SECOND, track.timescale);
+      }
+      return new TrackSampleTable(offsets, sizes, maximumSize, timestamps, flags);
+    }
+
     // Count the number of samples after applying edits.
     int editedSampleCount = 0;
     int nextSampleIndex = 0;
@@ -322,6 +334,89 @@ import java.util.List;
     }
     return new TrackSampleTable(editedOffsets, editedSizes, editedMaximumSize, editedTimestamps,
         editedFlags);
+  }
+
+  /**
+   * Parses a udta atom.
+   *
+   * @param udtaAtom The udta (user data) atom to parse.
+   * @param isQuickTime True for QuickTime media. False otherwise.
+   * @return Gapless playback information stored in the user data, or {@code null} if not present.
+   */
+  public static GaplessInfo parseUdta(Atom.LeafAtom udtaAtom, boolean isQuickTime) {
+    if (isQuickTime) {
+      // Meta boxes are regular boxes rather than full boxes in QuickTime. For now, don't try and
+      // parse one.
+      return null;
+    }
+    ParsableByteArray udtaData = udtaAtom.data;
+    udtaData.setPosition(Atom.HEADER_SIZE);
+    while (udtaData.bytesLeft() >= Atom.HEADER_SIZE) {
+      int atomSize = udtaData.readInt();
+      int atomType = udtaData.readInt();
+      if (atomType == Atom.TYPE_meta) {
+        udtaData.setPosition(udtaData.getPosition() - Atom.HEADER_SIZE);
+        udtaData.setLimit(udtaData.getPosition() + atomSize);
+        return parseMetaAtom(udtaData);
+      } else {
+        udtaData.skipBytes(atomSize - Atom.HEADER_SIZE);
+      }
+    }
+    return null;
+  }
+
+  private static GaplessInfo parseMetaAtom(ParsableByteArray data) {
+    data.skipBytes(Atom.FULL_HEADER_SIZE);
+    ParsableByteArray ilst = new ParsableByteArray();
+    while (data.bytesLeft() >= Atom.HEADER_SIZE) {
+      int payloadSize = data.readInt() - Atom.HEADER_SIZE;
+      int atomType = data.readInt();
+      if (atomType == Atom.TYPE_ilst) {
+        ilst.reset(data.data, data.getPosition() + payloadSize);
+        ilst.setPosition(data.getPosition());
+        GaplessInfo gaplessInfo = parseIlst(ilst);
+        if (gaplessInfo != null) {
+          return gaplessInfo;
+        }
+      }
+      data.skipBytes(payloadSize);
+    }
+    return null;
+  }
+
+  private static GaplessInfo parseIlst(ParsableByteArray ilst) {
+    while (ilst.bytesLeft() > 0) {
+      int position = ilst.getPosition();
+      int endPosition = position + ilst.readInt();
+      int type = ilst.readInt();
+      if (type == Atom.TYPE_DASHES) {
+        String lastCommentMean = null;
+        String lastCommentName = null;
+        String lastCommentData = null;
+        while (ilst.getPosition() < endPosition) {
+          int length = ilst.readInt() - Atom.FULL_HEADER_SIZE;
+          int key = ilst.readInt();
+          ilst.skipBytes(4);
+          if (key == Atom.TYPE_mean) {
+            lastCommentMean = ilst.readString(length);
+          } else if (key == Atom.TYPE_name) {
+            lastCommentName = ilst.readString(length);
+          } else if (key == Atom.TYPE_data) {
+            ilst.skipBytes(4);
+            lastCommentData = ilst.readString(length - 4);
+          } else {
+            ilst.skipBytes(length);
+          }
+        }
+        if (lastCommentName != null && lastCommentData != null
+            && "com.apple.iTunes".equals(lastCommentMean)) {
+          return GaplessInfo.createFromComment(lastCommentName, lastCommentData);
+        }
+      } else {
+        ilst.setPosition(endPosition);
+      }
+    }
+    return null;
   }
 
   /**
@@ -467,6 +562,9 @@ import java.util.List;
       } else if (childAtomType == Atom.TYPE_tx3g) {
         out.mediaFormat = MediaFormat.createTextFormat(Integer.toString(trackId),
             MimeTypes.APPLICATION_TX3G, MediaFormat.NO_VALUE, durationUs, language);
+      } else if (childAtomType == Atom.TYPE_wvtt) {
+        out.mediaFormat = MediaFormat.createTextFormat(Integer.toString(trackId),
+            MimeTypes.APPLICATION_MP4VTT, MediaFormat.NO_VALUE, durationUs, language);
       } else if (childAtomType == Atom.TYPE_stpp) {
         out.mediaFormat = MediaFormat.createTextFormat(Integer.toString(trackId),
             MimeTypes.APPLICATION_TTML, MediaFormat.NO_VALUE, durationUs, language,
@@ -734,10 +832,12 @@ import java.util.List;
       mimeType = MimeTypes.AUDIO_AC3;
     } else if (atomType == Atom.TYPE_ec_3) {
       mimeType = MimeTypes.AUDIO_E_AC3;
-    } else if (atomType == Atom.TYPE_dtsc || atomType == Atom.TYPE_dtse) {
+    } else if (atomType == Atom.TYPE_dtsc) {
       mimeType = MimeTypes.AUDIO_DTS;
     } else if (atomType == Atom.TYPE_dtsh || atomType == Atom.TYPE_dtsl) {
       mimeType = MimeTypes.AUDIO_DTS_HD;
+    } else if (atomType == Atom.TYPE_dtse) {
+      mimeType = MimeTypes.AUDIO_DTS_EXPRESS;
     } else if (atomType == Atom.TYPE_samr) {
       mimeType = MimeTypes.AUDIO_AMR_NB;
     } else if (atomType == Atom.TYPE_sawb) {
@@ -779,12 +879,12 @@ import java.util.List;
         // TODO: Choose the right AC-3 track based on the contents of dac3/dec3.
         // TODO: Add support for encryption (by setting out.trackEncryptionBoxes).
         parent.setPosition(Atom.HEADER_SIZE + childAtomPosition);
-        out.mediaFormat = Ac3Util.parseAnnexFAc3Format(parent, Integer.toString(trackId),
+        out.mediaFormat = Ac3Util.parseAc3AnnexFFormat(parent, Integer.toString(trackId),
             durationUs, language);
         return;
       } else if (atomType == Atom.TYPE_ec_3 && childAtomType == Atom.TYPE_dec3) {
         parent.setPosition(Atom.HEADER_SIZE + childAtomPosition);
-        out.mediaFormat = Ac3Util.parseAnnexFEAc3Format(parent, Integer.toString(trackId),
+        out.mediaFormat = Ac3Util.parseEAc3AnnexFFormat(parent, Integer.toString(trackId),
             durationUs, language);
         return;
       } else if ((atomType == Atom.TYPE_dtsc || atomType == Atom.TYPE_dtse

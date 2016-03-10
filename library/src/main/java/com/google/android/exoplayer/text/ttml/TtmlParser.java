@@ -17,7 +17,6 @@ package com.google.android.exoplayer.text.ttml;
 
 import com.google.android.exoplayer.C;
 import com.google.android.exoplayer.ParserException;
-import com.google.android.exoplayer.text.Subtitle;
 import com.google.android.exoplayer.text.SubtitleParser;
 import com.google.android.exoplayer.util.MimeTypes;
 import com.google.android.exoplayer.util.ParserUtil;
@@ -30,8 +29,8 @@ import org.xmlpull.v1.XmlPullParser;
 import org.xmlpull.v1.XmlPullParserException;
 import org.xmlpull.v1.XmlPullParserFactory;
 
+import java.io.ByteArrayInputStream;
 import java.io.IOException;
-import java.io.InputStream;
 import java.util.HashMap;
 import java.util.LinkedList;
 import java.util.Map;
@@ -82,23 +81,8 @@ public final class TtmlParser implements SubtitleParser {
   private static final int DEFAULT_TICKRATE = 1;
 
   private final XmlPullParserFactory xmlParserFactory;
-  private final boolean strictParsing;
 
-  /**
-   * Equivalent to {@code TtmlParser(false)}.
-   */
   public TtmlParser() {
-    this(false);
-  }
-
-  /**
-   * @param strictParsing If true, {@link #parse(InputStream)} will throw a {@link ParserException}
-   *     if the stream contains invalid data. If false, the parser will make a best effort to ignore
-   *     minor errors in the stream. Note however that a {@link ParserException} will still be
-   *     thrown when this is not possible.
-   */
-  public TtmlParser(boolean strictParsing) {
-    this.strictParsing = strictParsing;
     try {
       xmlParserFactory = XmlPullParserFactory.newInstance();
     } catch (XmlPullParserException e) {
@@ -107,10 +91,16 @@ public final class TtmlParser implements SubtitleParser {
   }
 
   @Override
-  public Subtitle parse(InputStream inputStream) throws IOException {
+  public boolean canParse(String mimeType) {
+    return MimeTypes.APPLICATION_TTML.equals(mimeType);
+  }
+
+  @Override
+  public TtmlSubtitle parse(byte[] bytes, int offset, int length) throws ParserException {
     try {
       XmlPullParser xmlParser = xmlParserFactory.newPullParser();
       Map<String, TtmlStyle> globalStyles = new HashMap<>();
+      ByteArrayInputStream inputStream = new ByteArrayInputStream(bytes, offset, length);
       xmlParser.setInput(inputStream, null);
       TtmlSubtitle ttmlSubtitle = null;
       LinkedList<TtmlNode> nodeStack = new LinkedList<>();
@@ -134,13 +124,9 @@ public final class TtmlParser implements SubtitleParser {
                   parent.addChild(node);
                 }
               } catch (ParserException e) {
-                if (strictParsing) {
-                  throw e;
-                } else {
-                  Log.w(TAG, "Suppressing parser error", e);
-                  // Treat the node (and by extension, all of its children) as unsupported.
-                  unsupportedNodeDepth++;
-                }
+                Log.w(TAG, "Suppressing parser error", e);
+                // Treat the node (and by extension, all of its children) as unsupported.
+                unsupportedNodeDepth++;
               }
             }
           } else if (eventType == XmlPullParser.TEXT) {
@@ -164,6 +150,8 @@ public final class TtmlParser implements SubtitleParser {
       return ttmlSubtitle;
     } catch (XmlPullParserException xppe) {
       throw new ParserException("Unable to parse source", xppe);
+    } catch (IOException e) {
+      throw new IllegalStateException("Unexpected error when reading input.", e);
     }
   }
 
@@ -285,11 +273,6 @@ public final class TtmlParser implements SubtitleParser {
 
   private TtmlStyle createIfNull(TtmlStyle style) {
     return style == null ? new TtmlStyle() : style;
-  }
-
-  @Override
-  public boolean canParse(String mimeType) {
-    return MimeTypes.APPLICATION_TTML.equals(mimeType);
   }
 
   private TtmlNode parseNode(XmlPullParser parser, TtmlNode parent) throws ParserException {
